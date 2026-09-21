@@ -40,6 +40,10 @@
       "dest": "/highway.html"
     },
     {
+      "src": "/scanner.html",
+      "dest": "/scanner.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
