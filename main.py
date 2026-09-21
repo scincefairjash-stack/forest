@@ -26,6 +26,7 @@ FIREBASE_BASE_URL = os.getenv(
 )
 SERVER_URL = os.getenv("SERVER_URL", "https://highway-animle-sfaty.vercel.app")
 
+# Initialize TeleBot in single-threaded mode (required for serverless/Vercel environments)
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 app = Flask(__name__)
 CORS(app)
@@ -100,7 +101,7 @@ SCANNER_HTML = """
       document.getElementById('status-text').innerHTML = `<span style="color:#4ade80;">✅ Pass Scanned! Verifying...</span>`;
 
       try {
-        // Required for ReplyKeyboardButton WebApps to pass data back to bot
+        // Required for ReplyKeyboardButton WebApps to pass data back to Telegram bot
         tg.sendData(decodedText);
       } catch (e) {
         document.getElementById('status-text').innerHTML = `<span style="color:#ef4444;">❌ Telegram Bridge Error</span>`;
@@ -236,7 +237,7 @@ def main_menu_keyboard():
     return markup
 
 def visitor_keyboard():
-    # ReplyKeyboardMarkup is mandatory for WebApp sendData() support
+    # ReplyKeyboardMarkup is mandatory for WebApp sendData() support in Telegram
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     scanner_url = f"{SERVER_URL}/scanner"
     markup.add(KeyboardButton("📷 Open QR Camera Scanner", web_app=WebAppInfo(url=scanner_url)))
@@ -500,8 +501,8 @@ def telegram_webhook():
 def index_check():
     return "🚀 Road Guardian Backend Active", 200
 
+# Required for Vercel serverless environment export
 app_instance = app
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-                      
