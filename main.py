@@ -291,6 +291,9 @@ def callback_listener(call):
     message_id = call.message.message_id
 
     try:
+        # Answer the callback query immediately to stop the loading icon on buttons
+        bot.answer_callback_query(call.id)
+
         if call.data == "menu_main":
             bot.edit_message_text("🏠 *Main Menu*", chat_id, message_id, parse_mode="Markdown", reply_markup=main_menu_keyboard())
 
@@ -304,7 +307,7 @@ def callback_listener(call):
 
         elif call.data == "menu_admin":
             if not is_admin(chat_id):
-                bot.answer_callback_query(call.id, "🔒 Enter admin password in chat first!")
+                bot.answer_callback_query(call.id, "🔒 Enter admin password in chat first!", show_alert=True)
                 set_user_state(chat_id, "awaiting_admin_password")
                 bot.send_message(chat_id, "🔐 Please enter the **Admin Password**:")
             else:
@@ -484,15 +487,16 @@ def telegram_webhook():
     if request.method == 'GET':
         return "Webhook Endpoint Ready!", 200
 
-    if request.headers.get('content-type') == 'application/json':
+    if request.method == 'POST':
         try:
             json_string = request.get_data().decode('utf-8')
-            update = telebot.types.Update.de_json(json_string)
-            bot.process_new_updates([update])
+            if json_string:
+                update = telebot.types.Update.de_json(json_string)
+                bot.process_new_updates([update])
             return 'OK', 200
         except Exception as e:
             print(f"Webhook processing error: {e}")
-            return 'Error', 500
+            return 'OK', 200
     return 'Bad Request', 400
 
 
