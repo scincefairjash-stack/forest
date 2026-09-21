@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "/scanner",
+      "dest": "main.py"
+    },
+    {
       "src": "/webhook",
       "dest": "main.py"
     },
@@ -20,19 +24,11 @@
       "dest": "main.py"
     },
     {
-      "src": "/scanner",
-      "dest": "main.py"
-    },
-    {
       "src": "/alert",
       "dest": "main.py"
     },
     {
       "src": "/forest-alert",
-      "dest": "main.py"
-    },
-    {
-      "src": "/api/(.*)",
       "dest": "main.py"
     },
     {
@@ -51,9 +47,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-    {
-  "src": "/scanner",
-  "dest": "main.py"
-}
   ]
 }
