@@ -51,5 +51,9 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
+    {
+  "src": "/scanner",
+  "dest": "main.py"
+}
   ]
 }
