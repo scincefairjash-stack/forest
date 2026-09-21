@@ -100,7 +100,6 @@ SCANNER_HTML = """
       document.getElementById('status-text').innerHTML = `<span style="color:#4ade80;">✅ Pass Scanned! Verifying...</span>`;
 
       try {
-        // Required for ReplyKeyboardButton WebApps to pass data back to bot
         tg.sendData(decodedText);
       } catch (e) {
         document.getElementById('status-text').innerHTML = `<span style="color:#ef4444;">❌ Telegram Bridge Error</span>`;
@@ -236,7 +235,6 @@ def main_menu_keyboard():
     return markup
 
 def visitor_keyboard():
-    # ReplyKeyboardMarkup is mandatory for WebApp sendData() support
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     scanner_url = f"{SERVER_URL}/scanner"
     markup.add(KeyboardButton("📷 Open QR Camera Scanner", web_app=WebAppInfo(url=scanner_url)))
@@ -270,34 +268,27 @@ def monitoring_keyboard():
     return markup
 
 
-# --- TELEGRAM BOT HANDLERS ---
+# --- DIRECT WEBHOOK DISPATCHER (NO TELEBOT ENGINE DEPENDENCY) ---
 
-@bot.message_handler(commands=['start', 'menu'])
-def send_welcome(message):
-    chat_id = message.chat.id
-    try:
-        bot.send_message(
-            chat_id, 
-            "🏠 *RoadGuardian Safety Control System*\n\nPlease choose an option:", 
-            parse_mode="Markdown", 
-            reply_markup=main_menu_keyboard()
-        )
-    except Exception as e:
-        print(f"Error in send_welcome: {e}")
+def process_telegram_update(update_json):
+    """Directly parses incoming updates to prevent serverless execution drops"""
+    if "callback_query" in update_json:
+        call = update_json["callback_query"]
+        callback_id = call.get("id")
+        data = call.get("data", "")
+        message = call.get("message", {})
+        chat_id = message.get("chat", {}).get("id")
+        message_id = message.get("message_id")
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback_listener(call):
-    chat_id = call.message.chat.id
-    message_id = call.message.message_id
+        try:
+            bot.answer_callback_query(callback_id)
+        except Exception:
+            pass
 
-    try:
-        # Answer the callback query immediately to stop the loading icon on buttons
-        bot.answer_callback_query(call.id)
-
-        if call.data == "menu_main":
+        if data == "menu_main":
             bot.edit_message_text("🏠 *Main Menu*", chat_id, message_id, parse_mode="Markdown", reply_markup=main_menu_keyboard())
 
-        elif call.data == "menu_visitor":
+        elif data == "menu_visitor":
             bot.send_message(
                 chat_id, 
                 "📲 Tap the **Open QR Camera Scanner** button below your chat input to open the camera, or simply type your pass code manually:", 
@@ -305,67 +296,76 @@ def callback_listener(call):
                 reply_markup=visitor_keyboard()
             )
 
-        elif call.data == "menu_admin":
+        elif data == "menu_admin":
             if not is_admin(chat_id):
-                bot.answer_callback_query(call.id, "🔒 Enter admin password in chat first!", show_alert=True)
+                try:
+                    bot.answer_callback_query(callback_id, "🔒 Enter admin password in chat first!", show_alert=True)
+                except Exception:
+                    pass
                 set_user_state(chat_id, "awaiting_admin_password")
                 bot.send_message(chat_id, "🔐 Please enter the **Admin Password**:")
             else:
                 bot.edit_message_text("🛠️ *Admin Panel*", chat_id, message_id, parse_mode="Markdown", reply_markup=admin_menu_keyboard())
 
-        elif call.data == "admin_make_code":
+        elif data == "admin_make_code":
             bot.edit_message_text("🔑 *Make Visitor Pass Code*\nSelect Pass Duration:", chat_id, message_id, parse_mode="Markdown", reply_markup=duration_keyboard())
 
-        elif call.data.startswith("dur_"):
-            duration = call.data.split("_")[1]
+        elif data.startswith("dur_"):
+            duration = data.split("_")[1]
             set_user_state(chat_id, {"action": "awaiting_phone", "duration": duration})
             bot.send_message(chat_id, f"📱 Selected Duration: *{duration}*\nNow type the Visitor's Phone Number:")
 
-        elif call.data == "admin_monitoring":
+        elif data == "admin_monitoring":
             bot.edit_message_text("📡 *Monitoring System*", chat_id, message_id, parse_mode="Markdown", reply_markup=monitoring_keyboard())
 
-    except Exception as e:
-        print(f"Error in callback: {e}")
+    elif "message" in update_json:
+        msg = update_json["message"]
+        chat_id = msg.get("chat", {}).get("id")
+        text = msg.get("text", "").strip() if "text" in msg else ""
 
-# Catches data sent from ReplyKeyboardButton WebApps
-@bot.message_handler(content_types=['web_app_data'])
-def handle_web_app_data(message):
-    chat_id = message.chat.id
-    scanned_code = message.web_app_data.data.strip()
+        # Handle WebApp Data
+        if "web_app_data" in msg:
+            scanned_code = msg["web_app_data"].get("data", "").strip()
+            success, duration = verify_and_register_visitor(chat_id, scanned_code)
+            if success:
+                bot.send_message(
+                    chat_id, 
+                    f"🎉 *Access Granted! You are Authorized.*\n\n"
+                    f"Your Chat ID `{chat_id}` is saved in Firebase!\n"
+                    f"⏱️ Active Duration: *{duration}*", 
+                    parse_mode="Markdown",
+                    reply_markup=ReplyKeyboardRemove()
+                )
+            else:
+                bot.send_message(
+                    chat_id, 
+                    "❌ Invalid or Expired Pass Code! Access Denied.",
+                    reply_markup=ReplyKeyboardRemove()
+                )
+            clear_user_state(chat_id)
+            return
 
-    success, duration = verify_and_register_visitor(chat_id, scanned_code)
-    if success:
-        bot.reply_to(
-            message, 
-            f"🎉 *Access Granted! You are Authorized.*\n\n"
-            f"Your Chat ID `{chat_id}` is saved in Firebase!\n"
-            f"⏱️ Active Duration: *{duration}*", 
-            parse_mode="Markdown",
-            reply_markup=ReplyKeyboardRemove()
-        )
-    else:
-        bot.reply_to(
-            message, 
-            "❌ Invalid or Expired Pass Code! Access Denied.",
-            reply_markup=ReplyKeyboardRemove()
-        )
-    clear_user_state(chat_id)
+        # Commands
+        if text in ['/start', '/menu']:
+            bot.send_message(
+                chat_id, 
+                "🏠 *RoadGuardian Safety Control System*\n\nPlease choose an option:", 
+                parse_mode="Markdown", 
+                reply_markup=main_menu_keyboard()
+            )
+            return
 
-@bot.message_handler(func=lambda message: True)
-def handle_text_inputs(message):
-    chat_id = message.chat.id
-    text = message.text.strip()
-    state = get_user_state(chat_id)
+        # Text Handling
+        state = get_user_state(chat_id)
 
-    try:
         if text == ADMIN_PASSWORD:
             add_admin(chat_id)
-            bot.reply_to(message, "🎉 *Admin Access Granted!*", parse_mode="Markdown", reply_markup=admin_menu_keyboard())
+            bot.send_message(chat_id, "🎉 *Admin Access Granted!*", parse_mode="Markdown", reply_markup=admin_menu_keyboard())
             clear_user_state(chat_id)
             return
 
         if state == "awaiting_admin_password":
-            bot.reply_to(message, "❌ Incorrect Password!")
+            bot.send_message(chat_id, "❌ Incorrect Password!")
             clear_user_state(chat_id)
             return
 
@@ -391,8 +391,8 @@ def handle_text_inputs(message):
         if text.startswith("PASS-"):
             success, duration = verify_and_register_visitor(chat_id, text)
             if success:
-                bot.reply_to(
-                    message, 
+                bot.send_message(
+                    chat_id, 
                     f"🎉 *Access Granted! You are Authorized.*\n\n"
                     f"Your Chat ID `{chat_id}` is saved in Firebase!\n"
                     f"⏱️ Active Duration: *{duration}*", 
@@ -400,16 +400,13 @@ def handle_text_inputs(message):
                     reply_markup=ReplyKeyboardRemove()
                 )
             else:
-                bot.reply_to(
-                    message, 
+                bot.send_message(
+                    chat_id, 
                     "❌ Invalid or Expired Pass Code! Access Denied.",
                     reply_markup=ReplyKeyboardRemove()
                 )
             clear_user_state(chat_id)
             return
-
-    except Exception as e:
-        print(f"Error handling text input: {e}")
 
 
 # --- FLASK SERVER & WEBHOOK ROUTES ---
@@ -489,10 +486,9 @@ def telegram_webhook():
 
     if request.method == 'POST':
         try:
-            json_string = request.get_data().decode('utf-8')
-            if json_string:
-                update = telebot.types.Update.de_json(json_string)
-                bot.process_new_updates([update])
+            update_data = request.get_json(force=True, silent=True)
+            if update_data:
+                process_telegram_update(update_data)
             return 'OK', 200
         except Exception as e:
             print(f"Webhook processing error: {e}")
