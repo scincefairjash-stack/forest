@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>સ્માર્ટ સેફ્ટી કંટ્રોલ</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: #121212; color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; text-align: center; }
+    .home-container { display: flex; flex-direction: column; gap: 20px; padding: 30px 20px; max-width: 500px; margin: 0 auto; }
+    .dept-card { background: #1e1e1e; border: 2px solid #333; border-radius: 16px; padding: 30px 20px; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-decoration: none; color: inherit; display: block; }
+    .dept-card:hover { border-color: #00e676; transform: translateY(-3px); }
+    .dept-card h2 { font-size: 22px; margin-bottom: 10px; color: #00e676; }
+    .dept-card p { font-size: 14px; color: #ccc; }
+  </style>
+</head>
+<body>
+  <h1 style="margin-top: 30px; margin-bottom: 10px;">સ્માર્ટ સેફ્ટી કંટ્રોલ</h1>
+  <p style="color: #aaa; margin-bottom: 20px;">કૃપા કરીને તમારો ડિપાર્ટમેન્ટ પસંદ કરો</p>
+
+  <div class="home-container">
+    <a href="forest.html" class="dept-card">
+      <h2>🌳 ગીર ફોરેસ્ટ ડિપાર્ટમેન્ટ</h2>
+      <p>Anti-Clap Gunshot Detection (બંદૂકના અવાજની ઓળખ)</p>
+    </a>
+
+    <a href="highway.html" class="dept-card">
+      <h2>🛣️ હાઇવે ડિપાર્ટમેન્ટ</h2>
+      <p>Animal Detection (રસ્તા પર તમામ પ્રાણીઓની ઓળખ)</p>
+    </a>
+  </div>
+</body>
+</html>
