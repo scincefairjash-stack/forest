@@ -1,4 +1,4 @@
-import os
+Import os
 import random
 import string
 import time
@@ -30,59 +30,60 @@ bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 app = Flask(__name__)
 CORS(app)
 
-# --- GOOGLE LENS STYLE CAMERA QR SCANNER WEBAPP HTML ---
+# --- DIRECT CAMERA QR SCANNER WEBAPP HTML ---
 SCANNER_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Google Lens Style QR Scanner</title>
+  <title>RoadGuardian QR Scanner</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: Arial, sans-serif;
       background: #0f172a;
       color: white;
       margin: 0;
-      padding: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
+      padding: 15px;
+      box-sizing: border-box;
     }
     .scanner-card {
-      width: 90%;
-      max-width: 400px;
+      width: 100%;
+      max-width: 360px;
       background: #1e293b;
       border-radius: 20px;
       padding: 20px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
       text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     }
     #reader {
       width: 100%;
       border-radius: 15px;
       overflow: hidden;
-      border: 3px solid #38bdf8;
+      border: 2px solid #38bdf8;
+      margin-top: 15px;
     }
     .status {
       margin-top: 15px;
-      font-size: 16px;
+      font-size: 14px;
       color: #38bdf8;
       font-weight: bold;
     }
   </style>
 </head>
 <body>
-
   <div class="scanner-card">
-    <h2>📷 Google Lens QR Scanner</h2>
-    <p style="color: #94a3b8; font-size: 14px;">QR કોડ સામે કેમેરો રાખો, સીધું જ ઓટો-કનેક્ટ થઇ જશે.</p>
+    <h3 style="margin:0;">📷 Scanning Visitor Pass</h3>
+    <p style="color: #94a3b8; font-size: 12px; margin-top: 5px;">Scan QR to grant safety access</p>
     <div id="reader"></div>
-    <div class="status" id="status-text">Scanning Live...</div>
+    <div class="status" id="status-text">Initializing Camera...</div>
   </div>
 
   <script>
@@ -90,24 +91,25 @@ SCANNER_HTML = """
     tg.ready();
     tg.expand();
 
-    function onScanSuccess(decodedText, decodedResult) {
-      document.getElementById('status-text').innerHTML = `<span style="color:#4ade80;">✅ Verified: ${decodedText}</span>`;
-      
-      // ૧. ટેલિગ્રામ Mini App ડેટા સેન્ડર (ડાયરેક્ટ ઓટો કનેક્ટ)
-      if (tg.sendData) {
+    let isProcessing = false;
+
+    function onScanSuccess(decodedText) {
+      if (isProcessing) return;
+      isProcessing = true;
+
+      document.getElementById('status-text').innerHTML = `<span style="color:#4ade80;">✅ Pass Scanned! Verifying...</span>`;
+
+      try {
+        // Required for ReplyKeyboardButton WebApps to pass data back to bot
         tg.sendData(decodedText);
-      } else {
-        alert("Scanned Code: " + decodedText);
+      } catch (e) {
+        document.getElementById('status-text').innerHTML = `<span style="color:#ef4444;">❌ Telegram Bridge Error</span>`;
       }
     }
 
     let html5QrcodeScanner = new Html5QrcodeScanner(
       "reader", 
-      { 
-        fps: 15, 
-        qrbox: { width: 250, height: 250 },
-        facingMode: "environment" // પાછળનો કેમેરો ઓટોમેટિક શરૂ કરશે
-      }, 
+      { fps: 15, qrbox: { width: 220, height: 220 }, facingMode: "environment" }, 
       false
     );
     html5QrcodeScanner.render(onScanSuccess);
@@ -234,6 +236,7 @@ def main_menu_keyboard():
     return markup
 
 def visitor_keyboard():
+    # ReplyKeyboardMarkup is mandatory for WebApp sendData() support
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     scanner_url = f"{SERVER_URL}/scanner"
     markup.add(KeyboardButton("📷 Open QR Camera Scanner", web_app=WebAppInfo(url=scanner_url)))
@@ -261,33 +264,37 @@ def duration_keyboard():
 
 def monitoring_keyboard():
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🌲 Forest Department Dashboard", url="https://forest111.vercel.app/forest.html"))
-    markup.add(InlineKeyboardButton("🛣️ Highway Safety Dashboard", url="https://forest111.vercel.app/highway.html"))
+    markup.add(InlineKeyboardButton("🌲 Forest Department Dashboard", url="https://forest111.vercel.app/"))
+    markup.add(InlineKeyboardButton("🛣️ Highway Safety Dashboard", url="https://forest111.vercel.app/"))
     markup.add(InlineKeyboardButton("🔙 Back", callback_data="menu_admin"))
     return markup
 
 
-# --- DIRECT WEBHOOK DISPATCHER ---
+# --- TELEGRAM BOT HANDLERS ---
 
-def process_telegram_update(update_json):
-    """Directly parses incoming updates to prevent serverless execution drops"""
-    if "callback_query" in update_json:
-        call = update_json["callback_query"]
-        callback_id = call.get("id")
-        data = call.get("data", "")
-        message = call.get("message", {})
-        chat_id = message.get("chat", {}).get("id")
-        message_id = message.get("message_id")
+@bot.message_handler(commands=['start', 'menu'])
+def send_welcome(message):
+    chat_id = message.chat.id
+    try:
+        bot.send_message(
+            chat_id, 
+            "🏠 *RoadGuardian Safety Control System*\n\nPlease choose an option:", 
+            parse_mode="Markdown", 
+            reply_markup=main_menu_keyboard()
+        )
+    except Exception as e:
+        print(f"Error in send_welcome: {e}")
 
-        try:
-            bot.answer_callback_query(callback_id)
-        except Exception:
-            pass
+@bot.callback_query_handler(func=lambda call: True)
+def callback_listener(call):
+    chat_id = call.message.chat.id
+    message_id = call.message.message_id
 
-        if data == "menu_main":
+    try:
+        if call.data == "menu_main":
             bot.edit_message_text("🏠 *Main Menu*", chat_id, message_id, parse_mode="Markdown", reply_markup=main_menu_keyboard())
 
-        elif data == "menu_visitor":
+        elif call.data == "menu_visitor":
             bot.send_message(
                 chat_id, 
                 "📲 Tap the **Open QR Camera Scanner** button below your chat input to open the camera, or simply type your pass code manually:", 
@@ -295,76 +302,67 @@ def process_telegram_update(update_json):
                 reply_markup=visitor_keyboard()
             )
 
-        elif data == "menu_admin":
+        elif call.data == "menu_admin":
             if not is_admin(chat_id):
-                try:
-                    bot.answer_callback_query(callback_id, "🔒 Enter admin password in chat first!", show_alert=True)
-                except Exception:
-                    pass
+                bot.answer_callback_query(call.id, "🔒 Enter admin password in chat first!")
                 set_user_state(chat_id, "awaiting_admin_password")
                 bot.send_message(chat_id, "🔐 Please enter the **Admin Password**:")
             else:
                 bot.edit_message_text("🛠️ *Admin Panel*", chat_id, message_id, parse_mode="Markdown", reply_markup=admin_menu_keyboard())
 
-        elif data == "admin_make_code":
+        elif call.data == "admin_make_code":
             bot.edit_message_text("🔑 *Make Visitor Pass Code*\nSelect Pass Duration:", chat_id, message_id, parse_mode="Markdown", reply_markup=duration_keyboard())
 
-        elif data.startswith("dur_"):
-            duration = data.split("_")[1]
+        elif call.data.startswith("dur_"):
+            duration = call.data.split("_")[1]
             set_user_state(chat_id, {"action": "awaiting_phone", "duration": duration})
             bot.send_message(chat_id, f"📱 Selected Duration: *{duration}*\nNow type the Visitor's Phone Number:")
 
-        elif data == "admin_monitoring":
+        elif call.data == "admin_monitoring":
             bot.edit_message_text("📡 *Monitoring System*", chat_id, message_id, parse_mode="Markdown", reply_markup=monitoring_keyboard())
 
-    elif "message" in update_json:
-        msg = update_json["message"]
-        chat_id = msg.get("chat", {}).get("id")
-        text = msg.get("text", "").strip() if "text" in msg else ""
+    except Exception as e:
+        print(f"Error in callback: {e}")
 
-        # Handle WebApp Data
-        if "web_app_data" in msg:
-            scanned_code = msg["web_app_data"].get("data", "").strip()
-            success, duration = verify_and_register_visitor(chat_id, scanned_code)
-            if success:
-                bot.send_message(
-                    chat_id, 
-                    f"🎉 *Access Granted! You are Authorized.*\n\n"
-                    f"Your Chat ID `{chat_id}` is saved in Firebase!\n"
-                    f"⏱️ Active Duration: *{duration}*", 
-                    parse_mode="Markdown",
-                    reply_markup=ReplyKeyboardRemove()
-                )
-            else:
-                bot.send_message(
-                    chat_id, 
-                    "❌ Invalid or Expired Pass Code! Access Denied.",
-                    reply_markup=ReplyKeyboardRemove()
-                )
-            clear_user_state(chat_id)
-            return
+# Catches data sent from ReplyKeyboardButton WebApps
+@bot.message_handler(content_types=['web_app_data'])
+def handle_web_app_data(message):
+    chat_id = message.chat.id
+    scanned_code = message.web_app_data.data.strip()
 
-        # Commands
-        if text in ['/start', '/menu']:
-            bot.send_message(
-                chat_id, 
-                "🏠 *RoadGuardian Safety Control System*\n\nPlease choose an option:", 
-                parse_mode="Markdown", 
-                reply_markup=main_menu_keyboard()
-            )
-            return
+    success, duration = verify_and_register_visitor(chat_id, scanned_code)
+    if success:
+        bot.reply_to(
+            message, 
+            f"🎉 *Access Granted! You are Authorized.*\n\n"
+            f"Your Chat ID `{chat_id}` is saved in Firebase!\n"
+            f"⏱️ Active Duration: *{duration}*", 
+            parse_mode="Markdown",
+            reply_markup=ReplyKeyboardRemove()
+        )
+    else:
+        bot.reply_to(
+            message, 
+            "❌ Invalid or Expired Pass Code! Access Denied.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+    clear_user_state(chat_id)
 
-        # Text Handling
-        state = get_user_state(chat_id)
+@bot.message_handler(func=lambda message: True)
+def handle_text_inputs(message):
+    chat_id = message.chat.id
+    text = message.text.strip()
+    state = get_user_state(chat_id)
 
+    try:
         if text == ADMIN_PASSWORD:
             add_admin(chat_id)
-            bot.send_message(chat_id, "🎉 *Admin Access Granted!*", parse_mode="Markdown", reply_markup=admin_menu_keyboard())
+            bot.reply_to(message, "🎉 *Admin Access Granted!*", parse_mode="Markdown", reply_markup=admin_menu_keyboard())
             clear_user_state(chat_id)
             return
 
         if state == "awaiting_admin_password":
-            bot.send_message(chat_id, "❌ Incorrect Password!")
+            bot.reply_to(message, "❌ Incorrect Password!")
             clear_user_state(chat_id)
             return
 
@@ -390,8 +388,8 @@ def process_telegram_update(update_json):
         if text.startswith("PASS-"):
             success, duration = verify_and_register_visitor(chat_id, text)
             if success:
-                bot.send_message(
-                    chat_id, 
+                bot.reply_to(
+                    message, 
                     f"🎉 *Access Granted! You are Authorized.*\n\n"
                     f"Your Chat ID `{chat_id}` is saved in Firebase!\n"
                     f"⏱️ Active Duration: *{duration}*", 
@@ -399,13 +397,16 @@ def process_telegram_update(update_json):
                     reply_markup=ReplyKeyboardRemove()
                 )
             else:
-                bot.send_message(
-                    chat_id, 
+                bot.reply_to(
+                    message, 
                     "❌ Invalid or Expired Pass Code! Access Denied.",
                     reply_markup=ReplyKeyboardRemove()
                 )
             clear_user_state(chat_id)
             return
+
+    except Exception as e:
+        print(f"Error handling text input: {e}")
 
 
 # --- FLASK SERVER & WEBHOOK ROUTES ---
@@ -483,15 +484,15 @@ def telegram_webhook():
     if request.method == 'GET':
         return "Webhook Endpoint Ready!", 200
 
-    if request.method == 'POST':
+    if request.headers.get('content-type') == 'application/json':
         try:
-            update_data = request.get_json(force=True, silent=True)
-            if update_data:
-                process_telegram_update(update_data)
+            json_string = request.get_data().decode('utf-8')
+            update = telebot.types.Update.de_json(json_string)
+            bot.process_new_updates([update])
             return 'OK', 200
         except Exception as e:
             print(f"Webhook processing error: {e}")
-            return 'OK', 200
+            return 'Error', 500
     return 'Bad Request', 400
 
 
