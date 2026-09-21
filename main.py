@@ -17,14 +17,14 @@ from telebot.types import (
     ReplyKeyboardRemove
 )
 
-# Environment variables (Fallback defaults removed for security)
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
-FIREBASE_BASE_URL = os.getenv("FIREBASE_BASE_URL")
+# Environment variables
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8560832618:AAFxHDrVvAEHDR1zKUtK1glQq0RWMsYrWXk")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "jashjani")
+FIREBASE_BASE_URL = os.getenv(
+    "FIREBASE_BASE_URL", 
+    "https://roadguardianai-a8d23-default-rtdb.asia-southeast1.firebasedatabase.app/RoadGuardian"
+)
 SERVER_URL = os.getenv("SERVER_URL", "https://highway-animle-sfaty.vercel.app")
-
-if not BOT_TOKEN:
-    raise ValueError("Missing critical environment variable: BOT_TOKEN")
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 app = Flask(__name__)
@@ -100,6 +100,7 @@ SCANNER_HTML = """
       document.getElementById('status-text').innerHTML = `<span style="color:#4ade80;">✅ Pass Scanned! Verifying...</span>`;
 
       try {
+        // Required for ReplyKeyboardButton WebApps to pass data back to bot
         tg.sendData(decodedText);
       } catch (e) {
         document.getElementById('status-text').innerHTML = `<span style="color:#ef4444;">❌ Telegram Bridge Error</span>`;
@@ -207,7 +208,10 @@ def get_active_recipients():
         admins = root_data.get("admins", {})
         if isinstance(admins, dict):
             for admin_id in admins.keys():
-                recipients.add(str(admin_id))
+                try:
+                    recipients.add(str(admin_id))
+                except Exception:
+                    pass
 
         subscribers = root_data.get("subscribers", {})
         if isinstance(subscribers, dict):
@@ -215,7 +219,10 @@ def get_active_recipients():
                 if isinstance(sdata, dict):
                     expire_at = sdata.get("expire_at", 0)
                     if expire_at > now:
-                        recipients.add(str(cid))
+                        try:
+                            recipients.add(str(cid))
+                        except Exception:
+                            pass
 
     return list(recipients)
 
@@ -229,6 +236,7 @@ def main_menu_keyboard():
     return markup
 
 def visitor_keyboard():
+    # ReplyKeyboardMarkup is mandatory for WebApp sendData() support
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     scanner_url = f"{SERVER_URL}/scanner"
     markup.add(KeyboardButton("📷 Open QR Camera Scanner", web_app=WebAppInfo(url=scanner_url)))
@@ -316,6 +324,7 @@ def callback_listener(call):
     except Exception as e:
         print(f"Error in callback: {e}")
 
+# Catches data sent from ReplyKeyboardButton WebApps
 @bot.message_handler(content_types=['web_app_data'])
 def handle_web_app_data(message):
     chat_id = message.chat.id
@@ -346,7 +355,7 @@ def handle_text_inputs(message):
     state = get_user_state(chat_id)
 
     try:
-        if ADMIN_PASSWORD and text == ADMIN_PASSWORD:
+        if text == ADMIN_PASSWORD:
             add_admin(chat_id)
             bot.reply_to(message, "🎉 *Admin Access Granted!*", parse_mode="Markdown", reply_markup=admin_menu_keyboard())
             clear_user_state(chat_id)
@@ -406,26 +415,6 @@ def handle_text_inputs(message):
 def serve_scanner():
     return render_template_string(SCANNER_HTML)
 
-def send_photo_broadcast(recipients, photo_bytes, caption):
-    """Utility function to upload image once and reuse file_id for faster delivery"""
-    success_count = 0
-    file_id = None
-
-    for cid in recipients:
-        try:
-            if file_id:
-                bot.send_photo(chat_id=cid, photo=file_id, caption=caption, parse_mode="Markdown")
-            else:
-                photo_stream = io.BytesIO(photo_bytes)
-                photo_stream.name = 'alert.jpg'
-                sent_msg = bot.send_photo(chat_id=cid, photo=photo_stream, caption=caption, parse_mode="Markdown")
-                file_id = sent_msg.photo[-1].file_id
-            success_count += 1
-        except Exception as e:
-            print(f"Failed sending alert to {cid}: {e}")
-            
-    return success_count
-
 @app.route('/api/alert', methods=['POST'])
 @app.route('/alert', methods=['POST'])
 def receive_alert_from_web():
@@ -441,7 +430,16 @@ def receive_alert_from_web():
     photo_bytes = photo_file.read()
 
     caption = f"🚨 *ROADGUARDIAN HIGHWAY ALERT*\n\n🐾 *Animal Detected:* {animal}\n📍 *Location:* Rajkot-Gondal Highway\n⚠️ *Drive with caution!*"
-    success_count = send_photo_broadcast(recipients, photo_bytes, caption)
+
+    success_count = 0
+    for cid in recipients:
+        try:
+            photo_stream = io.BytesIO(photo_bytes)
+            photo_stream.name = 'alert.jpg'
+            bot.send_photo(chat_id=cid, photo=photo_stream, caption=caption, parse_mode="Markdown")
+            success_count += 1
+        except Exception as e:
+            print(f"Failed sending alert to {cid}: {e}")
 
     return jsonify({"status": "Highway Alert sent", "sent_to_granted_count": success_count}), 200
 
@@ -466,7 +464,16 @@ def receive_forest_alert():
         f"📍 *Location:* Gir Forest Zone-1\n"
         f"⚠️ *Immediate Action Required! Forest Range Officer Alerted.*"
     )
-    success_count = send_photo_broadcast(recipients, photo_bytes, caption)
+
+    success_count = 0
+    for cid in recipients:
+        try:
+            photo_stream = io.BytesIO(photo_bytes)
+            photo_stream.name = 'forest_alert.jpg'
+            bot.send_photo(chat_id=cid, photo=photo_stream, caption=caption, parse_mode="Markdown")
+            success_count += 1
+        except Exception as e:
+            print(f"Failed sending alert to {cid}: {e}")
 
     return jsonify({"status": "Forest Alert sent", "sent_to_granted_count": success_count}), 200
 
