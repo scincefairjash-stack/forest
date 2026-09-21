@@ -264,8 +264,8 @@ def duration_keyboard():
 
 def monitoring_keyboard():
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🌲 Forest Department Dashboard", url="https://gir-forest-guardian.vercel.app/"))
-    markup.add(InlineKeyboardButton("🛣️ Highway Safety Dashboard", url="https://highway-animle-sfaty.vercel.app/"))
+    markup.add(InlineKeyboardButton("🌲 Forest Department Dashboard", url="https://forest111.vercel.app/forest.html"))
+    markup.add(InlineKeyboardButton("🛣️ Highway Safety Dashboard", url="https://forest111.vercel.app/highway.html"))
     markup.add(InlineKeyboardButton("🔙 Back", callback_data="menu_admin"))
     return markup
 
