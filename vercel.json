@@ -4,48 +4,12 @@
     {
       "src": "main.py",
       "use": "@vercel/python"
-    },
-    {
-      "src": "*.html",
-      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/webhook(.*)",
+      "src": "/(.*)",
       "dest": "main.py"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "main.py"
-    },
-    {
-      "src": "/alert",
-      "dest": "main.py"
-    },
-    {
-      "src": "/forest-alert",
-      "dest": "main.py"
-    },
-    {
-      "src": "/bot-status",
-      "dest": "main.py"
-    },
-    {
-      "src": "/scanner",
-      "dest": "/scanner.html"
-    },
-    {
-      "src": "/forest.html",
-      "dest": "/forest.html"
-    },
-    {
-      "src": "/highway.html",
-      "dest": "/highway.html"
-    },
-    {
-      "src": "/",
-      "dest": "/index.html"
     }
   ]
 }
