@@ -18,73 +18,71 @@ from telebot.types import (
 )
 
 # Environment variables
-BOT_TOKEN = os.getenv("8560832618:AAFxHDrVvAEHDR1zKUtK1glQq0RWMsYrWXk
-")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8560832618:AAFxHDrVvAEHDR1zKUtK1glQq0RWMsYrWXk")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "jashjani")
 FIREBASE_BASE_URL = os.getenv(
     "FIREBASE_BASE_URL", 
     "https://roadguardianai-a8d23-default-rtdb.asia-southeast1.firebasedatabase.app/RoadGuardian"
 )
-SERVER_URL = os.getenv("SERVER_URL", "https://forest111.vercel.app")
+SERVER_URL = os.getenv("SERVER_URL", "https://forest111.vercel.app/")
 
-bot = telebot.TeleBot(BOT_TOKEN, threaded=False) if BOT_TOKEN else None
+bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 app = Flask(__name__)
 CORS(app)
 
-# --- DIRECT CAMERA QR SCANNER WEBAPP HTML ---
+# --- GOOGLE LENS STYLE CAMERA QR SCANNER WEBAPP HTML ---
 SCANNER_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RoadGuardian QR Scanner</title>
+  <title>Google Lens Style QR Scanner</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: #0f172a;
       color: white;
       margin: 0;
+      padding: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      padding: 15px;
-      box-sizing: border-box;
     }
     .scanner-card {
-      width: 100%;
-      max-width: 360px;
+      width: 90%;
+      max-width: 400px;
       background: #1e293b;
       border-radius: 20px;
       padding: 20px;
-      text-align: center;
       box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      text-align: center;
     }
     #reader {
       width: 100%;
       border-radius: 15px;
       overflow: hidden;
-      border: 2px solid #38bdf8;
-      margin-top: 15px;
+      border: 3px solid #38bdf8;
     }
     .status {
       margin-top: 15px;
-      font-size: 14px;
+      font-size: 16px;
       color: #38bdf8;
       font-weight: bold;
     }
   </style>
 </head>
 <body>
+
   <div class="scanner-card">
-    <h3 style="margin:0;">📷 Scanning Visitor Pass</h3>
-    <p style="color: #94a3b8; font-size: 12px; margin-top: 5px;">Scan QR to grant safety access</p>
+    <h2>📷 Google Lens QR Scanner</h2>
+    <p style="color: #94a3b8; font-size: 14px;">QR કોડ સામે કેમેરો રાખો, સીધું જ ઓટો-કનેક્ટ થઇ જશે.</p>
     <div id="reader"></div>
-    <div class="status" id="status-text">Initializing Camera...</div>
+    <div class="status" id="status-text">Scanning Live...</div>
   </div>
 
   <script>
@@ -92,24 +90,24 @@ SCANNER_HTML = """
     tg.ready();
     tg.expand();
 
-    let isProcessing = false;
-
-    function onScanSuccess(decodedText) {
-      if (isProcessing) return;
-      isProcessing = true;
-
-      document.getElementById('status-text').innerHTML = `<span style="color:#4ade80;">✅ Pass Scanned! Verifying...</span>`;
-
-      try {
+    function onScanSuccess(decodedText, decodedResult) {
+      document.getElementById('status-text').innerHTML = `<span style="color:#4ade80;">✅ Verified: ${decodedText}</span>`;
+      
+      // ૧. ટેલિગ્રામ Mini App ડેટા સેન્ડર (ડાયરેક્ટ ઓટો કનેક્ટ)
+      if (tg.sendData) {
         tg.sendData(decodedText);
-      } catch (e) {
-        document.getElementById('status-text').innerHTML = `<span style="color:#ef4444;">❌ Telegram Bridge Error</span>`;
+      } else {
+        alert("Scanned Code: " + decodedText);
       }
     }
 
     let html5QrcodeScanner = new Html5QrcodeScanner(
       "reader", 
-      { fps: 15, qrbox: { width: 220, height: 220 }, facingMode: "environment" }, 
+      { 
+        fps: 15, 
+        qrbox: { width: 250, height: 250 },
+        facingMode: "environment" // પાછળનો કેમેરો ઓટોમેટિક શરૂ કરશે
+      }, 
       false
     );
     html5QrcodeScanner.render(onScanSuccess);
@@ -203,24 +201,26 @@ def get_active_recipients():
     recipients = set()
     now = time.time()
 
-    admins = get_firebase_data("admins")
-    if isinstance(admins, dict):
-        for admin_id in admins.keys():
-            try:
-                recipients.add(str(admin_id))
-            except Exception:
-                pass
+    root_data = get_firebase_data("")
+    if isinstance(root_data, dict):
+        admins = root_data.get("admins", {})
+        if isinstance(admins, dict):
+            for admin_id in admins.keys():
+                try:
+                    recipients.add(str(admin_id))
+                except Exception:
+                    pass
 
-    subscribers = get_firebase_data("subscribers")
-    if isinstance(subscribers, dict):
-        for cid, sdata in subscribers.items():
-            if isinstance(sdata, dict):
-                expire_at = sdata.get("expire_at", 0)
-                if expire_at > now:
-                    try:
-                        recipients.add(str(cid))
-                    except Exception:
-                        pass
+        subscribers = root_data.get("subscribers", {})
+        if isinstance(subscribers, dict):
+            for cid, sdata in subscribers.items():
+                if isinstance(sdata, dict):
+                    expire_at = sdata.get("expire_at", 0)
+                    if expire_at > now:
+                        try:
+                            recipients.add(str(cid))
+                        except Exception:
+                            pass
 
     return list(recipients)
 
@@ -235,7 +235,7 @@ def main_menu_keyboard():
 
 def visitor_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    scanner_url = f"{SERVER_URL.rstrip('/')}/scanner"
+    scanner_url = f"{SERVER_URL}/scanner"
     markup.add(KeyboardButton("📷 Open QR Camera Scanner", web_app=WebAppInfo(url=scanner_url)))
     return markup
 
@@ -261,8 +261,8 @@ def duration_keyboard():
 
 def monitoring_keyboard():
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🌲 Forest Department Dashboard", url=f"{SERVER_URL.rstrip('/')}/forest.html"))
-    markup.add(InlineKeyboardButton("🛣️ Highway Safety Dashboard", url=f"{SERVER_URL.rstrip('/')}/highway.html"))
+    markup.add(InlineKeyboardButton("🌲 Forest Department Dashboard", url="https://forest111.vercel.app/forest.html"))
+    markup.add(InlineKeyboardButton("🛣️ Highway Safety Dashboard", url="https://forest111.vercel.app/highway.html"))
     markup.add(InlineKeyboardButton("🔙 Back", callback_data="menu_admin"))
     return markup
 
@@ -271,9 +271,6 @@ def monitoring_keyboard():
 
 def process_telegram_update(update_json):
     """Directly parses incoming updates to prevent serverless execution drops"""
-    if not bot:
-        return
-
     if "callback_query" in update_json:
         call = update_json["callback_query"]
         callback_id = call.get("id")
@@ -417,6 +414,7 @@ def process_telegram_update(update_json):
 def serve_scanner():
     return render_template_string(SCANNER_HTML)
 
+@app.route('/api/alert', methods=['POST'])
 @app.route('/alert', methods=['POST'])
 def receive_alert_from_web():
     if 'photo' not in request.files or 'animal' not in request.form:
@@ -433,19 +431,19 @@ def receive_alert_from_web():
     caption = f"🚨 *ROADGUARDIAN HIGHWAY ALERT*\n\n🐾 *Animal Detected:* {animal}\n📍 *Location:* Rajkot-Gondal Highway\n⚠️ *Drive with caution!*"
 
     success_count = 0
-    if bot:
-        for cid in recipients:
-            try:
-                photo_stream = io.BytesIO(photo_bytes)
-                photo_stream.name = 'alert.jpg'
-                bot.send_photo(chat_id=cid, photo=photo_stream, caption=caption, parse_mode="Markdown")
-                success_count += 1
-            except Exception as e:
-                print(f"Failed sending alert to {cid}: {e}")
+    for cid in recipients:
+        try:
+            photo_stream = io.BytesIO(photo_bytes)
+            photo_stream.name = 'alert.jpg'
+            bot.send_photo(chat_id=cid, photo=photo_stream, caption=caption, parse_mode="Markdown")
+            success_count += 1
+        except Exception as e:
+            print(f"Failed sending alert to {cid}: {e}")
 
     return jsonify({"status": "Highway Alert sent", "sent_to_granted_count": success_count}), 200
 
 
+@app.route('/api/forest-alert', methods=['POST'])
 @app.route('/forest-alert', methods=['POST'])
 def receive_forest_alert():
     if 'photo' not in request.files:
@@ -467,19 +465,19 @@ def receive_forest_alert():
     )
 
     success_count = 0
-    if bot:
-        for cid in recipients:
-            try:
-                photo_stream = io.BytesIO(photo_bytes)
-                photo_stream.name = 'forest_alert.jpg'
-                bot.send_photo(chat_id=cid, photo=photo_stream, caption=caption, parse_mode="Markdown")
-                success_count += 1
-            except Exception as e:
-                print(f"Failed sending alert to {cid}: {e}")
+    for cid in recipients:
+        try:
+            photo_stream = io.BytesIO(photo_bytes)
+            photo_stream.name = 'forest_alert.jpg'
+            bot.send_photo(chat_id=cid, photo=photo_stream, caption=caption, parse_mode="Markdown")
+            success_count += 1
+        except Exception as e:
+            print(f"Failed sending alert to {cid}: {e}")
 
     return jsonify({"status": "Forest Alert sent", "sent_to_granted_count": success_count}), 200
 
 
+@app.route('/api/webhook', methods=['POST', 'GET'])
 @app.route('/webhook', methods=['POST', 'GET'])
 def telegram_webhook():
     if request.method == 'GET':
