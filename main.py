@@ -24,7 +24,7 @@ FIREBASE_BASE_URL = os.getenv(
     "FIREBASE_BASE_URL", 
     "https://roadguardianai-a8d23-default-rtdb.asia-southeast1.firebasedatabase.app/RoadGuardian"
 )
-SERVER_URL = os.getenv("SERVER_URL", "https://highway-animle-sfaty.vercel.app")
+SERVER_URL = os.getenv("SERVER_URL", "https://forest111.vercel.app/")
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 app = Flask(__name__)
