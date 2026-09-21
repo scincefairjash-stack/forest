@@ -12,11 +12,11 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
+      "src": "/webhook",
       "dest": "main.py"
     },
     {
-      "src": "/webhook",
+      "src": "/api/webhook",
       "dest": "main.py"
     },
     {
@@ -29,6 +29,10 @@
     },
     {
       "src": "/forest-alert",
+      "dest": "main.py"
+    },
+    {
+      "src": "/api/(.*)",
       "dest": "main.py"
     },
     {
